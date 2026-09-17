@@ -1,0 +1,48 @@
+{
+  "basis": "2014 measurements vs nearest 2013 operating record; 9 variables standardized using 2013 data",
+  "target_year": 2014,
+  "reference_year": 2013,
+  "target_rows": 7158,
+  "reference_rows": 7152,
+  "bundle_sha256": "466c51cf9492bfa6fdad294bb05500a68b8e112a0dfe1801817f9017859b3e49",
+  "original_threshold_exact": 0.511758095574647,
+  "rows": [
+    {
+      "distance_threshold": 0.511758,
+      "eligible_rows": 1277,
+      "coverage_percent": 17.84,
+      "mean_abs_nox_difference_mg_m3": 7.146,
+      "median_abs_nox_difference_mg_m3": 6.264,
+      "p90_abs_nox_difference_mg_m3": 13.771,
+      "is_current": true
+    },
+    {
+      "distance_threshold": 0.6,
+      "eligible_rows": 2357,
+      "coverage_percent": 32.93,
+      "mean_abs_nox_difference_mg_m3": 7.543,
+      "median_abs_nox_difference_mg_m3": 6.372,
+      "p90_abs_nox_difference_mg_m3": 14.625,
+      "is_current": false
+    },
+    {
+      "distance_threshold": 0.75,
+      "eligible_rows": 4414,
+      "coverage_percent": 61.67,
+      "mean_abs_nox_difference_mg_m3": 8.552,
+      "median_abs_nox_difference_mg_m3": 7.13,
+      "p90_abs_nox_difference_mg_m3": 17.133,
+      "is_current": false
+    },
+    {
+      "distance_threshold": 1.0,
+      "eligible_rows": 6062,
+      "coverage_percent": 84.69,
+      "mean_abs_nox_difference_mg_m3": 8.917,
+      "median_abs_nox_difference_mg_m3": 7.29,
+      "p90_abs_nox_difference_mg_m3": 18.475,
+      "is_current": false
+    }
+  ],
+  "warning": "The mean absolute difference in NOx is not anomaly detection accuracy. Thresholds were examined retrospectively on 2014 data; the current app threshold and classification were not changed."
+}
