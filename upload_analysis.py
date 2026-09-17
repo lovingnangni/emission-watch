@@ -80,8 +80,14 @@ def render_upload_section(bundle_dir, meta: dict, reference: pd.DataFrame, model
         "업로드 결과만으로 고장이나 규제 위반을 판정하지 않습니다."
     )
     st.caption("필수 열: " + ", ".join(features) + " · 선택 열: NOX · UCI 원본과 동일한 변수 정의·단위 필요")
-    example = reference[features + ["NOX"]].head(5).to_csv(index=False).encode("utf-8-sig")
-    st.download_button("예시 CSV 내려받기 (공개 데이터 5행)", example, "emission_watch_example.csv", "text/csv")
+    # Do not sample the 2013 reference itself: that gives zero-distance matches.
+    # Use fixed, held-out 2014 rows: 2 pass and 3 fail the exploratory threshold.
+    example_rows = [22240, 23785, 22191, 22313, 22415]
+    demo_example = pd.read_csv(bundle_dir / "demo_2014.csv")
+    example_frame = demo_example.set_index("record_id").loc[example_rows, features + ["NOX"]]
+    example = example_frame.to_csv(index=False).encode("utf-8-sig")
+    st.download_button("예시 CSV 내려받기 (2014년 미학습 기록 5행)", example, "emission_watch_example_2014.csv", "text/csv")
+    st.caption("예시 5행은 비교 기준인 2013년이 아닌 2014년 데이터이며, 비교 가능한 사례 2건과 보류 사례 3건을 포함합니다.")
     uploaded = st.file_uploader("CSV 선택 (최대 10 MB · 20,000행)", type=["csv"], key="emission_csv_upload")
     if uploaded is None:
         return
