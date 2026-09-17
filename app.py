@@ -107,3 +107,19 @@ def get_upload_model():
 
 
 render_upload_section(bundle_dir, app_state["meta"], app_state["reference"], get_upload_model())
+
+# A downloadable negative-test fixture; the upload validator is intentionally
+# unchanged, so this exercises exactly the same path as a user's malformed CSV.
+with st.expander("🧪 마지막 점검 · 필수 열이 빠진 CSV 테스트", expanded=False):
+    st.write("아래 파일은 필수 운전 변수 **AT** 열을 일부러 제외한 테스트용 CSV입니다. 내려받아 위의 CSV 선택 칸에 업로드해 보세요.")
+    feature_names = list(app_state["meta"]["features"])
+    missing_feature = feature_names[0]
+    remaining = [name for name in feature_names if name != missing_feature]
+    fixture_csv = (",".join(remaining) + ",NOX\n" + ",".join("1" for _ in remaining) + ",1\n").encode("utf-8-sig")
+    st.download_button(
+        "필수 열 누락 테스트 CSV 내려받기",
+        data=fixture_csv,
+        file_name="emission_watch_missing_column_test.csv",
+        mime="text/csv",
+    )
+    st.info(f"**기대 결과:** 앱이 멈추거나 예측값을 만들지 않고, 빨간 오류 안내에 '필수 운전 변수 누락: {missing_feature}'가 나와야 합니다. 테스트 후에는 정상 예시 CSV를 다시 선택하세요.")
