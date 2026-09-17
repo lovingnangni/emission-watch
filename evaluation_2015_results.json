@@ -1,0 +1,12 @@
+{
+  "year": 2015,
+  "records": 7384,
+  "train_years": [2011, 2012],
+  "mae_mg_m3": 12.016623476589238,
+  "rmse_mg_m3": 13.477983969442462,
+  "r2": -0.4659735052121501,
+  "mean_residual_measured_minus_predicted_mg_m3": -11.907340987710398,
+  "model_retrained": false,
+  "source": "https://archive.ics.uci.edu/static/public/551/gas+turbine+co+and+nox+emission+data+set.zip",
+  "evaluation_run": "https://github.com/lovingnangni/emission-watch/actions/runs/35186995776"
+}
