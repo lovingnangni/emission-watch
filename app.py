@@ -92,8 +92,14 @@ patched_app.write_text(source, encoding="utf-8")
 app_state = runpy.run_path(str(patched_app), run_name="__main__", init_globals={"heldout_2015": heldout_2015})
 
 from core import load_artifacts
+from matching_insights import render_matching_insights
 from upload_analysis import render_upload_section
 
+
+render_matching_insights(
+    app_state["demo"], app_state["reference"],
+    float(app_state["meta"]["matching_distance_threshold"]),
+)
 
 @st.cache_resource(show_spinner="CSV 분석용 모델을 준비하는 중입니다…")
 def get_upload_model():
