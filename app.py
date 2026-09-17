@@ -4,6 +4,7 @@ from __future__ import annotations
 import hashlib
 import importlib.util
 import io
+import json
 import runpy
 import sys
 import tempfile
@@ -51,7 +52,44 @@ def get_bundle() -> Path:
 
 bundle_dir = get_bundle()
 sys.path.insert(0, str(bundle_dir))
-app_state = runpy.run_path(str(bundle_dir / "app.py"), run_name="__main__")
+heldout_2015 = json.loads(Path(__file__).with_name("evaluation_2015_results.json").read_text(encoding="utf-8"))
+if heldout_2015.get("year") != 2015 or heldout_2015.get("records") != 7384 or heldout_2015.get("model_retrained") is not False:
+    raise RuntimeError("2015년 평가 결과를 확인해야 합니다.")
+source = (bundle_dir / "app.py").read_text(encoding="utf-8")
+replacements = {
+    '    st.write("**2015년:** 사용하지 않음 (최종 평가용 보류)")':
+        '    st.write("**2015년:** 학습·모델 선택에 사용하지 않은 별도 최종 평가 (결과 공개)")',
+    'st.title("🌿 Emission Watch")': '''st.title("🌿 Emission Watch")
+st.markdown("**배출 기록 조사 보조 도구** · 운전 조건으로 NOₓ를 예측하고, 측정값 및 비슷한 과거 기록과 함께 살펴봅니다.")
+st.info("**3단계 사용법:** ① 아래 'CSV 업로드 · 내 기록 조사'에서 예시 CSV 다운로드 → ② 업로드해 전체 기록과 예측오차 확인 → ③ 한 행을 선택해 2013년 운전 기록과 비교하세요. 기존 2014년 공개 데이터 사례는 '기록 조사' 탭에서 볼 수 있습니다.")
+st.caption("'비교 가능'은 탐색용 운전 변수 거리 기준을 통과했다는 뜻이고, '비교 보류'는 기준을 넘었다는 뜻입니다. 어느 쪽도 고장·안전·배출규제 판정이 아닙니다.")''',
+    '    "**모델 상태 점검 필요:** 2014년에는 2013년보다 예측오차가 커지고 평균 오차 방향도 바뀌었습니다. "':
+        '    "**모델 상태 점검 필요:** 2014년과 학습에 사용하지 않은 2015년 모두 2013년보다 예측오차가 큽니다. "',
+    '    d.metric("유사 기록 기준 통과", f"{matched_ratio:.1%}")': '''    d.metric("유사 기록 기준 통과", f"{matched_ratio:.1%}")
+    st.error(
+        f"**2015년 최종 평가 (7,384건): MAE {heldout_2015['mae_mg_m3']:.3f} mg/m³, R² {heldout_2015['r2']:.3f}.** "
+        "2011–2012년에 학습한 동일 모델이 2015년에서도 불안정했습니다. 새 설비의 정확도나 고장 탐지 성능은 입증되지 않았습니다."
+    )''',
+    '            {"평가 연도": "2014 · 탐색", "MAE": current["mae"],\n             "R²": current["r2"], "평균 오차(실제−예측)": current["bias"]},': '''            {"평가 연도": "2014 · 탐색", "MAE": current["mae"],
+             "R²": current["r2"], "평균 오차(실제−예측)": current["bias"]},
+            {"평가 연도": "2015 · 별도 최종 평가", "MAE": heldout_2015["mae_mg_m3"],
+             "R²": heldout_2015["r2"], "평균 오차(실제−예측)": heldout_2015["mean_residual_measured_minus_predicted_mg_m3"]},''',
+    '    "**읽는 법:** 2014년의 평균 오차가 음수인 것은 모델이 실제 NOₓ를 전반적으로 높게 예측했다는 뜻입니다. "':
+        '    "**읽는 법:** 2014년과 2015년의 평균 오차가 음수인 것은 모델이 실제 NOₓ를 전반적으로 높게 예측했다는 뜻입니다. "',
+    '- **검증:** 2013년 데이터로 예측 성능 평가. **탐색 시연:** 학습하지 않은 2014년 데이터로 예측오차와 유사 기록을 살펴봄.':
+        '- **검증:** 2013년 데이터로 예측 성능 평가. **탐색 시연:** 학습하지 않은 2014년 데이터로 예측오차와 유사 기록을 살펴봄. **최종 평가:** 모델 재학습 없이 2015년 7,384건에서 MAE 12.017 mg/m³, R² -0.466 확인. 새 설비에서의 정확도를 보장하지 않음.',
+    '    st.write("**첫 번째 후속 검증:** 보류 중인 2015년 데이터를 최종 평가로 사용하고, 연도별 편향이 반복되는지 확인합니다.")':
+        '    st.write("**2015년 최종 평가 완료:** 2011–2012년 모델을 재학습하지 않고 2015년 7,384건에 적용했습니다. MAE 12.017 mg/m³, R² -0.466으로 일반화 한계를 확인했습니다.")',
+    '    st.write("**보안:** 공개 데이터와 번들로 제공한 모델만 사용합니다. 외부 파일 업로드나 사용자 데이터 저장 기능은 없습니다.")':
+        '    st.write("**보안:** 공개 데이터와 번들로 제공한 모델만 사용합니다. CSV 업로드는 이 페이지에서 분석하며 결과를 데이터베이스에 저장하는 기능은 없습니다. 민감한 설비 정보는 업로드하지 마세요.")',
+}
+for old, new in replacements.items():
+    if source.count(old) != 1:
+        raise RuntimeError("앱 원본이 변경되어 설명 패치를 안전하게 적용할 수 없습니다.")
+    source = source.replace(old, new)
+patched_app = bundle_dir / "app_explained.py"
+patched_app.write_text(source, encoding="utf-8")
+app_state = runpy.run_path(str(patched_app), run_name="__main__", init_globals={"heldout_2015": heldout_2015})
 
 from core import load_artifacts
 from upload_analysis import render_upload_section
