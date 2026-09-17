@@ -1,7 +1,8 @@
-"""Launch the verified Emission Watch bundle without an optional Plotly dependency."""
+"""Streamlit entry point for the verified Emission Watch data/model bundle."""
 from __future__ import annotations
 
 import hashlib
+import importlib.util
 import io
 import runpy
 import sys
@@ -9,6 +10,25 @@ import tempfile
 import urllib.request
 import zipfile
 from pathlib import Path
+
+import streamlit as st
+
+# Check the actual app environment before trying to import the model or charts.
+# requirements.txt lists all of these packages, but the current Cloud deployment
+# reported missing plotly and joblib despite saying dependencies were processed.
+NEEDED = ("numpy", "pandas", "plotly", "joblib", "sklearn")
+missing = [name for name in NEEDED if importlib.util.find_spec(name) is None]
+if missing:
+    st.set_page_config(page_title="Emission Watch | 설치 환경 확인", page_icon="🌿")
+    st.error("앱 실행 환경에 필수 패키지가 설치되지 않았습니다.")
+    st.write("없는 모듈:", ", ".join(missing))
+    st.write("실행 중인 Python 버전:", sys.version.split()[0])
+    st.info(
+        "GitHub의 requirements.txt에는 필요한 패키지가 이미 적혀 있습니다. "
+        "Streamlit Community Cloud에서 앱을 Python 3.12로 새로 배포하고 "
+        "패키지 설치 로그를 확인해 주세요. GitHub 저장소는 삭제하지 마세요."
+    )
+    st.stop()
 
 BUNDLE_URL = (
     "https://raw.githubusercontent.com/lovingnangni/emission-watch/main/"
@@ -38,16 +58,4 @@ def get_bundle() -> Path:
 
 bundle_dir = get_bundle()
 sys.path.insert(0, str(bundle_dir))
-source = (bundle_dir / "app.py").read_text(encoding="utf-8")
-old_import = "import plotly.graph_objects as go\n"
-chart_start = "    figure = go.Figure()"
-chart_end = "    st.plotly_chart(figure, use_container_width=True)"
-if source.count(old_import) != 1 or source.count(chart_start) != 1 or source.count(chart_end) != 1:
-    raise RuntimeError("The bundled app changed; chart compatibility patch needs review")
-source = source.replace(old_import, "")
-start = source.index(chart_start)
-end = source.index(chart_end, start) + len(chart_end)
-source = source[:start] + '    st.scatter_chart(sample, x="NOX", y="predicted_NOX", height=450)' + source[end:]
-patched_app = bundle_dir / "app_streamlit.py"
-patched_app.write_text(source, encoding="utf-8")
-runpy.run_path(str(patched_app), run_name="__main__")
+runpy.run_path(str(bundle_dir / "app.py"), run_name="__main__")
