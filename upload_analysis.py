@@ -1,8 +1,4 @@
-"""CSV investigation for a transparent UCI gas-turbine research demonstration.
-
-No uploaded objects are deserialized; only CSV bytes enter the model. The model
-and reference data are fixed, reviewed artifacts bundled with the app.
-"""
+"""CSV investigation for the Emission Watch research prototype."""
 from __future__ import annotations
 
 from io import BytesIO
@@ -13,12 +9,14 @@ from sklearn.metrics import mean_absolute_error
 from sklearn.neighbors import NearestNeighbors
 from sklearn.preprocessing import StandardScaler
 
+from report_export import make_report
+
 MAX_UPLOAD_BYTES = 10 * 1024 * 1024
 MAX_ROWS = 20_000
 
 
 def analyze_csv(payload: bytes, model, reference: pd.DataFrame, features: list[str], threshold: float):
-    """Validate same-schema CSV and compare against the existing 2013 references."""
+    """Validate CSV against the original nine operating inputs."""
     if not payload:
         raise ValueError("CSV 파일이 비어 있습니다.")
     if len(payload) > MAX_UPLOAD_BYTES:
@@ -40,10 +38,7 @@ def analyze_csv(payload: bytes, model, reference: pd.DataFrame, features: list[s
     invalid = (~np.isfinite(numeric.to_numpy(dtype=float))).any(axis=1)
     if invalid.any():
         first = np.flatnonzero(invalid)[:5] + 2
-        raise ValueError(
-            "필수 변수에 빈칸·문자·무한대가 있는 행이 있습니다. "
-            "CSV 줄 번호(예시): " + ", ".join(map(str, first))
-        )
+        raise ValueError("필수 변수에 빈칸·문자·무한대가 있는 행이 있습니다. CSV 줄 번호(예시): " + ", ".join(map(str, first)))
     reference_numeric = reference[features].to_numpy(dtype=float)
     scale = StandardScaler().fit(reference_numeric)
     nn = NearestNeighbors(n_neighbors=1).fit(scale.transform(reference_numeric))
@@ -62,26 +57,16 @@ def analyze_csv(payload: bytes, model, reference: pd.DataFrame, features: list[s
 
 
 def render_upload_section(bundle_dir, meta: dict, reference: pd.DataFrame, model):
-    """Add a self-contained Streamlit investigation panel below the existing tabs."""
+    """Upload, inspect, and export model results and a selected-row report."""
     import streamlit as st
 
     features = meta["features"]
     threshold = float(meta["matching_distance_threshold"])
     st.divider()
     st.header("📂 CSV 업로드 · 내 기록 조사")
-    st.write(
-        "가스터빈 운전 변수 9개가 들어 있는 **UTF-8 CSV**를 업로드하면 "
-        "기존 공개 데이터 모델로 NOₓ를 예측하고 2013년 유사 기록과 비교합니다. "
-        "실제 NOX 열이 있으면 예측오차도 계산합니다."
-    )
-    st.warning(
-        "연구용 시연입니다. 다른 발전소나 다른 측정 단위에서의 정확성은 검증되지 않았습니다. "
-        "민감한 설비 데이터·개인정보는 공개 데모에 올리지 마세요. "
-        "업로드 결과만으로 고장이나 규제 위반을 판정하지 않습니다."
-    )
+    st.write("가스터빈 운전 변수 9개가 들어 있는 **UTF-8 CSV**를 업로드하면 기존 공개 데이터 모델로 NOₓ를 예측하고 2013년 유사 기록과 비교합니다. 실제 NOX 열이 있으면 예측오차도 계산합니다.")
+    st.warning("연구용 시연입니다. 다른 발전소나 다른 측정 단위에서의 정확성은 검증되지 않았습니다. 민감한 설비 데이터·개인정보는 공개 데모에 올리지 마세요. 업로드 결과만으로 고장이나 규제 위반을 판정하지 않습니다.")
     st.caption("필수 열: " + ", ".join(features) + " · 선택 열: NOX · UCI 원본과 동일한 변수 정의·단위 필요")
-    # Do not sample the 2013 reference itself: that gives zero-distance matches.
-    # Use fixed, held-out 2014 rows: 2 pass and 3 fail the exploratory threshold.
     example_rows = [22240, 23785, 22191, 22313, 22415]
     demo_example = pd.read_csv(bundle_dir / "demo_2014.csv")
     example_frame = demo_example.set_index("record_id").loc[example_rows, features + ["NOX"]]
@@ -121,25 +106,20 @@ def render_upload_section(bundle_dir, meta: dict, reference: pd.DataFrame, model
         st.caption("아래 정렬은 **예측오차 크기순**이며, 이상·고장 순위가 아닙니다.")
         subset = subset.reindex(subset["예측오차 (실제−예측)"].abs().sort_values(ascending=False).index)
     st.dataframe(subset.drop(columns=features), hide_index=True, use_container_width=True)
-    st.download_button(
-        "분석 결과 CSV 내려받기",
-        analyzed.to_csv(index=False).encode("utf-8-sig"),
-        "emission_watch_uploaded_results.csv", "text/csv",
-    )
+    st.download_button("분석 결과 CSV 내려받기", analyzed.to_csv(index=False).encode("utf-8-sig"), "emission_watch_uploaded_results.csv", "text/csv")
     selected = st.number_input("자세히 볼 업로드 행 번호", min_value=1, max_value=len(analyzed), value=1, step=1)
     row = analyzed.iloc[int(selected) - 1]
     st.write(f"**업로드 {int(selected)}행** · 예측 NOₓ **{row['예측 NOX']:.3f} mg/m³**")
     if measured:
         st.write(f"실제 NOₓ **{row['NOX']:.3f}** / 오차(실제−예측) **{row['예측오차 (실제−예측)']:+.3f} mg/m³**")
     if bool(row["비교 가능"]):
-        st.success(
-            f"2013년 기록 #{int(row['가장 가까운 2013년 기록'])}과 탐색적 비교 가능 "
-            f"(거리 {row['표준화 거리']:.3f} / 기준 {threshold:.3f}). "
-            f"그 기록의 NOₓ는 {row['과거 유사 기록 NOX']:.3f} mg/m³입니다."
-        )
+        st.success(f"2013년 기록 #{int(row['가장 가까운 2013년 기록'])}과 탐색적 비교 가능 (거리 {row['표준화 거리']:.3f} / 기준 {threshold:.3f}). 그 기록의 NOₓ는 {row['과거 유사 기록 NOX']:.3f} mg/m³입니다.")
     else:
-        st.warning(
-            f"가장 가까운 2013년 기록도 임시 거리 기준을 넘어서 비교를 보류합니다 "
-            f"({row['표준화 거리']:.3f} > {threshold:.3f}). 이것은 고장 판정이 아닙니다."
-        )
+        st.warning(f"가장 가까운 2013년 기록도 임시 거리 기준을 넘어서 비교를 보류합니다 ({row['표준화 거리']:.3f} > {threshold:.3f}). 이것은 고장 판정이 아닙니다.")
+    st.subheader("📝 선택한 행의 조사 리포트")
+    st.caption("운전 변수 차이가 큰 항목 3개, 측정값·예측값, 과거 비교 가능 여부와 모델 한계를 텍스트로 정리합니다. 변수 차이는 원인이나 AI 중요도를 뜻하지 않습니다.")
+    report = make_report(row, reference, features, threshold)
+    with st.expander("리포트 미리보기", expanded=False):
+        st.text(report)
+    st.download_button("선택한 행 조사 리포트 내려받기 (.txt)", data=report.encode("utf-8-sig"), file_name=f"emission_watch_row_{int(selected)}_report.txt", mime="text/plain")
     st.caption("2013년 거리 기준은 탐색용입니다. 업로드한 CSV는 이 페이지에서 분석하며 데이터베이스에 저장하는 기능은 없습니다.")
