@@ -1,9 +1,4 @@
-"""Streamlit entry point for the Emission Watch iPad ZIP bundle.
-
-The ZIP is already in this public GitHub repository. Download a SHA-256-pinned
-copy on the server, unpack only the expected paths, then run the bundled app.
-No user data is collected or uploaded.
-"""
+"""Launch the verified Emission Watch bundle without an optional Plotly dependency."""
 from __future__ import annotations
 
 import hashlib
@@ -43,4 +38,16 @@ def get_bundle() -> Path:
 
 bundle_dir = get_bundle()
 sys.path.insert(0, str(bundle_dir))
-runpy.run_path(str(bundle_dir / "app.py"), run_name="__main__")
+source = (bundle_dir / "app.py").read_text(encoding="utf-8")
+old_import = "import plotly.graph_objects as go\n"
+chart_start = "    figure = go.Figure()"
+chart_end = "    st.plotly_chart(figure, use_container_width=True)"
+if source.count(old_import) != 1 or source.count(chart_start) != 1 or source.count(chart_end) != 1:
+    raise RuntimeError("The bundled app changed; chart compatibility patch needs review")
+source = source.replace(old_import, "")
+start = source.index(chart_start)
+end = source.index(chart_end, start) + len(chart_end)
+source = source[:start] + '    st.scatter_chart(sample, x="NOX", y="predicted_NOX", height=450)' + source[end:]
+patched_app = bundle_dir / "app_streamlit.py"
+patched_app.write_text(source, encoding="utf-8")
+runpy.run_path(str(patched_app), run_name="__main__")
